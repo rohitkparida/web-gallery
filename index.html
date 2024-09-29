@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Gallery</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4CAF50">
+    <link rel="apple-touch-icon" href="icon-192x192.png">
+    <style>
+        :root {
+            --bg: #f2f2f2;
+            --txt: #333;
+            --hdr: #4CAF50
+        }
+
+        body.dark-mode {
+            --bg: #121212;
+            --txt: #e0e0e0;
+            --hdr: #388E3C
+        }
+
+        body {
+            font: system-ui;
+            margin: 0;
+            background: var(--bg);
+            color: var(--txt);
+            transition: .3s
+        }
+
+        header {
+            background: var(--hdr);
+            color: #fff;
+            padding: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px #0001
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin: 0 0 .5rem;
+            width: 100%
+        }
+
+        #folder-upload {
+            display: none
+        }
+
+        .btn {
+            background: #fff;
+            color: var(--hdr);
+            border: none;
+            padding: .5rem 1rem;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: .3s;
+            margin: .25rem
+        }
+
+        .gallery {
+            padding: .5rem
+        }
+
+        .month-grid {
+            margin-bottom: 1rem
+        }
+
+        .month-heading {
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: .5rem;
+            background: #4caf501a;
+            border-radius: 4px
+        }
+
+        .photos {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 2px;
+            padding: 2px 0
+        }
+
+        .photo {
+            aspect-ratio: 1;
+            overflow: hidden;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px #0002;
+            transition: .3s;
+            position: relative
+        }
+
+        .photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover
+        }
+
+        .loading {
+            position: fixed;
+            inset: 0;
+            background: #0008;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1001
+        }
+
+        .loading::after {
+            content: "";
+            width: 40px;
+            height: 40px;
+            border: 4px solid #fff;
+            border-top: 4px solid var(--hdr);
+            border-radius: 50%;
+            animation: spin 1s linear infinite
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        .fullscreen {
+            position: fixed;
+            inset: 0;
+            background: #000e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1002
+        }
+
+        .fullscreen img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain
+        }
+
+        .fullscreen-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px
+        }
+
+        .fullscreen-btn {
+            background: #fff3;
+            color: #fff;
+            border: none;
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer
+        }
+
+        .search-container {
+            display: flex;
+            align-items: center;
+            margin: .5rem 0;
+            width: 100%
+        }
+
+        #search-input {
+            flex-grow: 1;
+            padding: .5rem;
+            border-radius: 20px;
+            border: none;
+            margin-right: .5rem
+        }
+
+        .favorite {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #fffc;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center
+        }
+
+        .favorite.active {
+            color: red
+        }
+
+        .image-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #000b;
+            color: #fff;
+            padding: 5px;
+            font-size: 10px;
+            opacity: 0;
+            transition: .3s
+        }
+
+        .photo:hover .image-info {
+            opacity: 1
+        }
+
+        #grid-size {
+            width: 100%;
+            margin: .5rem 0
+        }
+
+        @media(max-width:600px) {
+            .photos {
+                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr))
+            }
+
+            .fullscreen-controls {
+                flex-wrap: wrap;
+                justify-content: center
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Web Gallery</h1>
+        <div class="search-container"><input id="search-input" placeholder="Search..."><button class="btn"
+                id="search-btn">Search</button></div>
+        <input type="file" id="folder-upload" webkitdirectory directory multiple>
+        <button class="btn" onclick="document.getElementById('folder-upload').click()">Select Folder</button>
+        <button class="btn" id="dark-mode-toggle">Dark Mode</button>
+        <button class="btn" id="slideshow-btn">Slideshow</button>
+        <input type="range" id="grid-size" min="50" max="200" value="100">
+    </header>
+    <div class="gallery"></div>
+    <div id="loading" class="loading" style="display:none"></div>
+    <div id="fullscreen" class="fullscreen" style="display:none">
+        <img id="fullscreen-img" src="" alt="Fullscreen image">
+        <div class="fullscreen-controls">
+            <button class="fullscreen-btn" id="prev-btn">&lt;</button>
+            <button class="fullscreen-btn" id="next-btn">&gt;</button>
+            <button class="fullscreen-btn" id="zoom-in-btn">+</button>
+            <button class="fullscreen-btn" id="zoom-out-btn">-</button>
+            <button class="fullscreen-btn" id="share-btn">Share</button>
+            <button class="fullscreen-btn" id="favorite-btn">♥</button>
+            <button class="fullscreen-btn" id="close-fullscreen-btn">Close</button>
+        </div>
+    </div>
+</body>
+<script>
+    const $ = document.querySelector.bind(document);
+    const $$ = document.querySelectorAll.bind(document);
+    const el = {
+        folderUpload: $('#folder-upload'),
+        gallery: $('.gallery'),
+        loading: $('#loading'),
+        searchInput: $('#search-input'),
+        searchBtn: $('#search-btn'),
+        darkModeToggle: $('#dark-mode-toggle'),
+        slideshowBtn: $('#slideshow-btn'),
+        fullscreen: $('#fullscreen'),
+        fullscreenImg: $('#fullscreen-img'),
+        gridSizeSlider: $('#grid-size')
+    };
+
+    let allPhotos = [],
+        currentIndex = 0,
+        zoomLevel = 1,
+        slideshowInterval;
+    const CACHE_NAME = 'webgallery-cache-v1';
+
+    const handleFolderSelection = async e => {
+        el.loading.style.display = 'flex';
+        allPhotos = await Promise.all(Array.from(e.target.files).filter(f => f.type.startsWith('image/')).map(
+            async f => {
+                const url = URL.createObjectURL(f);
+                const {
+                    width,
+                    height
+                } = await new Promise(r => {
+                    const img = new Image();
+                    img.onload = () => r({
+                        width: img.width,
+                        height: img.height
+                    });
+                    img.src = url;
+                });
+                return {
+                    url,
+                    lastModified: f.lastModified,
+                    name: f.name,
+                    size: f.size,
+                    dimensions: {
+                        width,
+                        height
+                    },
+                    favorite: false
+                };
+            }));
+        allPhotos.sort((a, b) => b.lastModified - a.lastModified);
+        renderGallery(groupPhotosByMonth(allPhotos));
+        el.loading.style.display = 'none';
+        cacheImages();
+    };
+
+    const groupPhotosByMonth = photos => photos.reduce((acc, p) => {
+        const key = new Date(p.lastModified).toLocaleString('default', {
+            month: 'long',
+            year: 'numeric'
+        });
+        (acc[key] = acc[key] || []).push(p);
+        return acc;
+    }, {});
+
+    const renderGallery = grouped => {
+        el.gallery.innerHTML = Object.entries(grouped).map(([month, photos]) => `
+        <div class="month-grid">
+            <div class="month-heading">${month}</div>
+            <div class="photos">${photos.map((p, i) => `
+                <div class="photo" data-index="${i}">
+                    <img loading="lazy" src="${p.url}" alt="${p.name}" style="aspect-ratio: ${p.dimensions.width / p.dimensions.height};">
+                    <button class="favorite ${p.favorite ? 'active' : ''}">&hearts;</button>
+                    <div class="image-info">${p.name}<br>${formatBytes(p.size)}<br>${p.dimensions.width}x${p.dimensions.height}</div>
+                </div>
+            `).join('')}</div>
+        </div>
+    `).join('');
+        $$('.photo').forEach((p, i) => p.addEventListener('click', () => openFullscreen(i)));
+        $$('.favorite').forEach((b, i) => b.addEventListener('click', e => {
+            e.stopPropagation();
+            toggleFavorite(i);
+        }));
+    };
+
+    const formatBytes = (bytes, decimals = 2) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024,
+            dm = decimals < 0 ? 0 : decimals,
+            sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'],
+            i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    };
+
+    const searchPhotos = () => renderGallery(groupPhotosByMonth(allPhotos.filter(p =>
+        p.name.toLowerCase().includes(el.searchInput.value.toLowerCase()) ||
+        new Date(p.lastModified).toLocaleDateString().includes(el.searchInput.value)
+    )));
+
+    const toggleDarkMode = () => document.body.classList.toggle('dark-mode');
+
+    const toggleSlideshow = () => {
+        if (slideshowInterval) {
+            clearInterval(slideshowInterval);
+            slideshowInterval = null;
+            el.slideshowBtn.textContent = 'Start Slideshow';
+        } else {
+            openFullscreen(0);
+            slideshowInterval = setInterval(() => navigateFullscreen(1), 3000);
+            el.slideshowBtn.textContent = 'Stop Slideshow';
+        }
+    };
+
+    const openFullscreen = i => {
+        currentIndex = i;
+        el.fullscreenImg.src = allPhotos[i].url;
+        el.fullscreen.style.display = 'flex';
+        zoomLevel = 1;
+        updateZoom();
+        updateFavoriteButton();
+    };
+
+    const closeFullscreen = () => {
+        el.fullscreen.style.display = 'none';
+        if (slideshowInterval) {
+            clearInterval(slideshowInterval);
+            slideshowInterval = null;
+            el.slideshowBtn.textContent = 'Slideshow';
+        }
+    };
+
+    const updateFavoriteButton = () => {
+        const btn = $('#favorite-btn');
+        btn.classList.toggle('active', allPhotos[currentIndex].favorite);
+        btn.setAttribute('aria-label', allPhotos[currentIndex].favorite ? 'Remove from favorites' :
+            'Add to favorites');
+    };
+
+    const navigateFullscreen = d => {
+        currentIndex = (currentIndex + d + allPhotos.length) % allPhotos.length;
+        el.fullscreenImg.src = allPhotos[currentIndex].url;
+        zoomLevel = 1;
+        updateZoom();
+    };
+
+    const zoom = d => {
+        zoomLevel = Math.max(0.1, Math.min(5, zoomLevel + d));
+        updateZoom();
+    };
+
+    const updateZoom = () => el.fullscreenImg.style.transform = `scale(${zoomLevel})`;
+
+    const shareImage = async () => {
+        const p = allPhotos[currentIndex];
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: p.name,
+                    text: 'Check out this photo!',
+                    url: p.url
+                });
+            } catch (e) {
+                console.error('Error sharing:', e);
+            }
+        } else {
+            alert('Web Share API is not supported in your browser.');
+        }
+    };
+
+    const toggleFavorite = i => {
+        allPhotos[i].favorite = !allPhotos[i].favorite;
+        const btn = $(`.photo[data-index="${i}"] .favorite`);
+        if (btn) {
+            btn.classList.toggle('active');
+            btn.setAttribute('aria-label', allPhotos[i].favorite ? 'Remove from favorites' : 'Add to favorites');
+        }
+        updateFavoriteButton();
+    };
+
+    const updateGridSize = () => {
+        const size = el.gridSizeSlider.value;
+        document.documentElement.style.setProperty('--photo-size', `${size}px`);
+        $$('.photos').forEach(g => g.style.gridTemplateColumns = `repeat(auto-fill, minmax(${size}px, 1fr))`);
+    };
+
+    const cacheImages = async () => {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.addAll(allPhotos.map(p => p.url));
+    };
+
+    const loadFromCache = async () => {
+        const cache = await caches.open(CACHE_NAME);
+        const cachedRequests = await cache.keys();
+        allPhotos = await Promise.all(cachedRequests.map(async (r, i) => {
+            const res = await cache.match(r);
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const {
+                width,
+                height
+            } = await new Promise(r => {
+                const img = new Image();
+                img.onload = () => r({
+                    width: img.width,
+                    height: img.height
+                });
+                img.src = url;
+            });
+            return {
+                url,
+                name: `Cached Image ${i + 1}`,
+                lastModified: Date.now(),
+                size: blob.size,
+                dimensions: {
+                    width,
+                    height
+                },
+                favorite: false
+            };
+        }));
+        renderGallery(groupPhotosByMonth(allPhotos));
+    };
+
+    el.folderUpload.addEventListener('change', handleFolderSelection);
+    el.searchBtn.addEventListener('click', searchPhotos);
+    el.darkModeToggle.addEventListener('click', toggleDarkMode);
+    el.slideshowBtn.addEventListener('click', toggleSlideshow);
+    $('#prev-btn').addEventListener('click', () => navigateFullscreen(-1));
+    $('#next-btn').addEventListener('click', () => navigateFullscreen(1));
+    $('#zoom-in-btn').addEventListener('click', () => zoom(0.1));
+    $('#zoom-out-btn').addEventListener('click', () => zoom(-0.1));
+    $('#share-btn').addEventListener('click', shareImage);
+    $('#close-fullscreen-btn').addEventListener('click', closeFullscreen);
+    el.gridSizeSlider.addEventListener('input', updateGridSize);
+    el.fullscreen.addEventListener('click', e => {
+        if (e.target === el.fullscreen) closeFullscreen();
+    });
+    $('#favorite-btn').addEventListener('click', () => toggleFavorite(currentIndex));
+
+    loadFromCache();
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('ServiceWorker registration successful with scope: ', reg.scope))
+                .catch(err => console.log('ServiceWorker registration failed: ', err));
+        });
+    }
+</script>
+
+</html>
